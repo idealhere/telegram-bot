@@ -1,0 +1,6 @@
+ccxt
+pandas
+pandas-ta
+python-telegram-bot==13.15
+flask
+numpy==1.24.4
