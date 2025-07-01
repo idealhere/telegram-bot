@@ -267,8 +267,10 @@ def main():
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
     keep_alive()
+    updater.bot.delete_webhook()  # ← отключаем webhook
     updater.start_polling()
     updater.idle()
+    updater.bot.send_message(chat_id=YOUR_CHAT_ID, text="✅ Бот запущен и готов к работе!")
 
 
 
