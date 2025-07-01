@@ -6,6 +6,7 @@ import pandas_ta as ta
 import logging  # 👈 добавляем импорт логгера
 import html
 import time
+import re
 last_sent_signal = {}  # ключ: symbol, значение: 'LONG' или 'SHORT'
 
 
@@ -200,6 +201,8 @@ def send_analysis(context: CallbackContext):
         except Exception as e:
             context.bot.send_message(chat_id=chat_id, text=f"⚠️ Ошибка при анализе {symbol}: {e}")
 
+
+
 def send_filtered_analysis(context: CallbackContext):
     global last_sent_signal
     chat_id = context.job.context
@@ -215,19 +218,16 @@ def send_filtered_analysis(context: CallbackContext):
         try:
             report = generate_report(symbol=symbol)
 
-            # Определяем направление
             if "Сигнал ЛОНГ" in report:
                 direction = 'LONG'
             elif "Сигнал ШОРТ" in report:
                 direction = 'SHORT'
             else:
-                continue  # нет сигнала
+                continue
 
-            # Извлекаем score
-            line = next((l for l in report.splitlines() if "Выполнено" in l), None)
-            score = int(line.split()[1].split('/')[0]) if line else 0
+            match = re.search(r'Выполнено (\d+)/5', report)
+            score = int(match.group(1)) if match else 0
 
-            # Отправляем только если score ≥ 4 и сигнал новый
             if score >= 4 and last_sent_signal.get(symbol) != direction:
                 context.bot.send_message(chat_id=chat_id, text=report, parse_mode='HTML')
                 last_sent_signal[symbol] = direction
