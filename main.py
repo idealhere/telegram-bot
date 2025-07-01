@@ -97,19 +97,18 @@ def generate_report(symbol='BTC/USDT'):
     last = df.iloc[-1]
     rsi_6h = fetch_rsi_6h(symbol=symbol)
 
-    # Структура рынка по 4h
+    # структура рынка 4h
     df_struct = fetch_ohlcv(symbol=symbol, timeframe='4h')
     df_struct = detect_market_structure(df_struct)
     structure = df_struct.iloc[-1].get('structure', '—')
 
-    # Заголовок
+    # заголовок
     text = (
         f"📊 {symbol}\n"
         f"🕒 {last.name.strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"💰 Цена: {last['close']:.2f} USDT\n"
     )
 
-    # Условия для ЛОНГА
     long_conditions = {
         "RSI < 33": rsi_6h < 33,
         "Бычья свеча (close > open)": last['close'] > last['open'],
@@ -117,8 +116,6 @@ def generate_report(symbol='BTC/USDT'):
         "EMA20 > EMA50": last['ema20'] > last['ema50'],
         "Цена выше EMA20": last['close'] > last['ema20']
     }
-
-    # Условия для ШОРТА
     short_conditions = {
         "RSI > 67": rsi_6h > 67,
         "Медвежья свеча (close < open)": last['close'] < last['open'],
@@ -130,53 +127,24 @@ def generate_report(symbol='BTC/USDT'):
     long_score = sum(long_conditions.values())
     short_score = sum(short_conditions.values())
 
-    # 🟢 ЛОНГ
-    if long_score >= 4 and long_score > short_score:
-        text += (
-            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🟢 <b>Сильный сигнал на вход в ЛОНГ</b>\n"
-            f"✅ Выполнено {long_score}/5 условий:\n"
-        )
-        for label, passed in long_conditions.items():
-            safe_label = html.escape(label)
-            text += f"{'🟩' if passed else '⬜'} {safe_label}\n"
+    # выбор «победителя»
+    if long_score > short_score:
+        emoji_passed, emoji_failed, conds, score = '🟩', '⬜', long_conditions, long_score
+        header = ("🟢 <b>Сигнал ЛОНГ</b>", long_score)
+    else:
+        emoji_passed, emoji_failed, conds, score = '🟥', '⬜', short_conditions, short_score
+        header = ("🔴 <b>Сигнал ШОРТ</b>", short_score)
+
+    # если score >= 3 — выводим чек-лист
+    if score >= 3:
+        text += "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"{header[0]}\n✅ Выполнено {header[1]}/5 условий:\n"
+        for label, passed in conds.items():
+            safe = html.escape(label)
+            text += f"{emoji_passed if passed else emoji_failed} {safe}\n"
         text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-        logging.info(f"{symbol} — ЛОНГ: {long_score}/5 условий выполнено")
 
-    # 🔴 ШОРТ
-    elif short_score >= 4 and short_score > long_score:
-        text += (
-            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🔴 <b>Сильный сигнал на вход в ШОРТ</b>\n"
-            f"✅ Выполнено {short_score}/5 условий:\n"
-        )
-        for label, passed in short_conditions.items():
-            safe_label = html.escape(label)
-            text += f"{'🟥' if passed else '⬜'} {safe_label}\n"
-        text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-        logging.info(f"{symbol} — ШОРТ: {short_score}/5 условий выполнено")
-
-    # 🟡 Возможный ЛОНГ
-    elif long_score == 3:
-        text += (
-            f"\n🟡 <b>Возможный сигнал на ЛОНГ</b> "
-            f"({long_score}/5) — требуется подтверждение\n"
-        )
-        for label, passed in long_conditions.items():
-            safe_label = html.escape(label)
-            text += f"{'🟩' if passed else '⬜'} {safe_label}\n"
-
-    # 🟡 Возможный ШОРТ
-    elif short_score == 3:
-        text += (
-            f"\n🟡 <b>Возможный сигнал на ШОРТ</b> "
-            f"({short_score}/5) — требуется подтверждение\n"
-        )
-        for label, passed in short_conditions.items():
-            safe_label = html.escape(label)
-            text += f"{'🟥' if passed else '⬜'} {safe_label}\n"
-
-    # ⚪ Нет сигнала
+    # иначе — нет сигнала
     else:
         text += (
             f"\n⚪ <b>Пока нет точки входа</b> — "
@@ -184,6 +152,7 @@ def generate_report(symbol='BTC/USDT'):
         )
 
     return text
+
 
 
 
