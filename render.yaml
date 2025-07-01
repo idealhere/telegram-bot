@@ -2,6 +2,7 @@ services:
   - type: web
     name: telegram-bot
     env: python
+    region: oregon
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     runtime: python-3.10
