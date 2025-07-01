@@ -78,12 +78,9 @@ def fetch_rsi_6h(symbol='BTC/USDT'):
     return df['rsi'].iloc[-1]
 
 def generate_report(symbol='BTC/USDT'):
-    print(f"📊 Генерация отчёта для {symbol}...")
-
     df = fetch_ohlcv(symbol=symbol)
     df = compute_indicators(df)
     last = df.iloc[-1]
-    prev = df.iloc[-2]
     rsi_6h = fetch_rsi_6h(symbol=symbol)
 
     # Структура рынка по 4h
@@ -91,69 +88,78 @@ def generate_report(symbol='BTC/USDT'):
     df_struct = detect_market_structure(df_struct)
     structure = df_struct.iloc[-1].get('structure', '—')
 
+    # Заголовок
     text = (
-        f"📊 {symbol} (EMA: 30m, RSI: 6h)\n"
-        f"Время: {last.name}\n"
-        f"Цена:  {last['close']:.2f} USDT\n"
-        f"RSI (6h): {rsi_6h:.1f}\n"
-        f"EMA20: {last['ema20']:.2f}\n"
-        f"EMA50: {last['ema50']:.2f}\n\n"
+        f"📊 {symbol}\n"
+        f"🕒 {last.name.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"💰 Цена: {last['close']:.2f} USDT\n"
     )
 
-    # Добавим структуру в текст
-    if structure == 'HH-HL':
-        text += "📈 Структура (4h): HH–HL — восходящий тренд ⬆️\n"
-    elif structure == 'LL-LH':
-        text += "📉 Структура (4h): LL–LH — нисходящий тренд ⬇️\n"
-    elif structure == 'ChoCH':
-        text += "⚠️ Обнаружен ChoCH — возможный разворот тренда 🔄\n"
-        logging.info(f"{symbol} — ChoCH обнаружен на 4h")
-    elif structure == 'BOS':
-        text += "🔁 Обнаружен BOS — тренд подтверждён ✅\n"
-        logging.info(f"{symbol} — BOS обнаружен на 4h")
+    # Условия для ЛОНГА
+    long_conditions = {
+        "RSI < 33": rsi_6h < 33,
+        "Бычья свеча (close > open)": last['close'] > last['open'],
+        "BOS (структура)": structure == 'BOS',
+        "EMA20 > EMA50": last['ema20'] > last['ema50'],
+        "Цена выше EMA20": last['close'] > last['ema20']
+    }
 
-    # Сигналы EMA-кроссовера
-    if prev['ema20'] < prev['ema50'] and last['ema20'] > last['ema50']:
-        text += "✅ EMA20 пересекла EMA50 снизу вверх — рост вероятен.\n"
-    elif prev['ema20'] > prev['ema50'] and last['ema20'] < last['ema50']:
-        text += "❌ EMA20 пересекла EMA50 сверху вниз — падение вероятно.\n"
+    # Условия для ШОРТА
+    short_conditions = {
+        "RSI > 67": rsi_6h > 67,
+        "Медвежья свеча (close < open)": last['close'] < last['open'],
+        "BOS (структура)": structure == 'BOS',
+        "EMA20 < EMA50": last['ema20'] < last['ema50'],
+        "Цена ниже EMA20": last['close'] < last['ema20']
+    }
 
-    # Подтверждение тренда по положению цены относительно EMA
-    if last['close'] > last['ema20'] and last['close'] > last['ema50']:
-        text += "📈 Цена выше EMA20 и EMA50 — восходящий тренд подтверждён.\n"
-    elif last['close'] < last['ema20'] and last['close'] < last['ema50']:
-        text += "📉 Цена ниже EMA20 и EMA50 — нисходящий тренд подтверждён.\n"
+    long_score = sum(long_conditions.values())
+    short_score = sum(short_conditions.values())
+
+    # 🟢 ЛОНГ
+    if long_score >= 4 and long_score > short_score:
+        text += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🟢 <b>Сильный сигнал на вход в ЛОНГ</b>\n"
+            f"✅ Выполнено {long_score}/5 условий:\n"
+        )
+        for label, passed in long_conditions.items():
+            text += f"{'🟩' if passed else '⬜'} {label}\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        logging.info(f"{symbol} — ЛОНГ: {long_score}/5 условий выполнено")
+
+    # 🔴 ШОРТ
+    elif short_score >= 4 and short_score > long_score:
+        text += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🔴 <b>Сильный сигнал на вход в ШОРТ</b>\n"
+            f"✅ Выполнено {short_score}/5 условий:\n"
+        )
+        for label, passed in short_conditions.items():
+            text += f"{'🟥' if passed else '⬜'} {label}\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        logging.info(f"{symbol} — ШОРТ: {short_score}/5 условий выполнено")
+
+    # 🟡 Возможные сигналы
+    elif long_score == 3:
+        text += (
+            f"\n🟡 <b>Возможный сигнал на ЛОНГ</b> "
+            f"({long_score}/5) — требуется подтверждение\n"
+        )
+    elif short_score == 3:
+        text += (
+            f"\n🟡 <b>Возможный сигнал на ШОРТ</b> "
+            f"({short_score}/5) — требуется подтверждение\n"
+        )
+
+    # ⚪ Нет сигнала
     else:
-        text += "⚠️ Цена между EMA20 и EMA50 — тренд неясен.\n"
-
-    # Сигналы RSI (по 6-часовому таймфрейму) + фильтр по EMA
-    if rsi_6h < 33:
-        text += "🟢 RSI (6h) < 33 — зона перепроданности.\n"
-        if last['close'] > last['ema20'] and last['close'] > last['ema50']:
-            text += "📥 Сигнал: Вход в сделку на покупку (по RSI + подтверждение EMA).\n"
-        else:
-            text += "⚠️ RSI < 33, но цена не выше EMA20/EMA50 — сигнал не подтверждён.\n"
-    elif rsi_6h > 70:
-        text += "🔴 RSI (6h) > 70 — перекупленность.\n"
-        if last['close'] < last['ema20'] and last['close'] < last['ema50']:
-            text += "📤 Сигнал: Возможен выход из позиции или шорт (по RSI + EMA).\n"
-        else:
-            text += "⚠️ RSI > 70, но цена не ниже EMA20/EMA50 — сигнал не подтверждён.\n"
-    else:
-        # Мягкие предупреждения
-        if 33 <= rsi_6h <= 36:
-            text += "🟡 RSI приближается к зоне перепроданности (33–36).\n"
-        elif 65 <= rsi_6h <= 70:
-            text += "🟡 RSI приближается к зоне перекупленности (65–70).\n"
-
-        # Проверка близости к EMA
-        near_ema20 = last['close'] > last['ema20'] * 0.995
-        near_ema50 = last['close'] > last['ema50'] * 0.995
-        if near_ema20 and near_ema50:
-            text += "🟡 Цена почти выше EMA20 и EMA50 — тренд может подтвердиться.\n"
+        text += (
+            f"\n⚪ <b>Пока нет точки входа</b> — "
+            f"ЛОНГ: {long_score}/5, ШОРТ: {short_score}/5\n"
+        )
 
     return text
-
 
 
 # Telegram-бот
@@ -166,18 +172,18 @@ def start(update: Update, context: CallbackContext):
         "Используй /subscribe для подписки и /unsubscribe для отмены."
     )
 
-def send_analysis(context: CallbackContext):
+ddef send_analysis(context: CallbackContext):
     chat_id = context.job.context
     symbols = [
-    'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT',
-    'LTC/USDT', 'ADA/USDT', 'AVAX/USDT', 'UNI/USDT',
-    'LINK/USDT', 'SHIB/USDT', 'ATOM/USDT'
-]
+        'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT',
+        'LTC/USDT', 'ADA/USDT', 'AVAX/USDT', 'UNI/USDT',
+        'LINK/USDT', 'SHIB/USDT', 'ATOM/USDT'
+    ]
 
     for symbol in symbols:
         try:
             report = generate_report(symbol=symbol)
-            context.bot.send_message(chat_id=chat_id, text=report)
+            context.bot.send_message(chat_id=chat_id, text=report, parse_mode='HTML')
         except Exception as e:
             context.bot.send_message(chat_id=chat_id, text=f"⚠️ Ошибка при анализе {symbol}: {e}")
 
@@ -194,8 +200,8 @@ def send_filtered_analysis(context: CallbackContext):
     for symbol in symbols:
         try:
             report = generate_report(symbol=symbol)
-            if any(x in report for x in ["📥", "📤", "🟡"]):
-                context.bot.send_message(chat_id=chat_id, text=report)
+            if any(x in report for x in ["🟢", "🔴", "🟡"]):
+                context.bot.send_message(chat_id=chat_id, text=report, parse_mode='HTML')
                 sent_count += 1
             else:
                 print(f"[{symbol}] — нет сигнала, отчёт не отправлен.")
@@ -205,6 +211,7 @@ def send_filtered_analysis(context: CallbackContext):
     # 🧾 Финальный итог
     summary = f"📊 Обработано {len(symbols)} пар. Сигналы найдены по {sent_count} из них."
     context.bot.send_message(chat_id=chat_id, text=summary)
+
 
 
 
