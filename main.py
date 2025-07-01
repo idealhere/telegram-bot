@@ -5,6 +5,7 @@ import pandas as pd
 import pandas_ta as ta
 import logging  # 👈 добавляем импорт логгера
 import html
+import time
 
 from flask import Flask
 from threading import Thread
@@ -37,11 +38,21 @@ TOKEN = "7570443415:AAFTbFM6XoOFfSTnqo8eC3A5leB6SuKv2RY"
 # Инициализируем биржу Kucoin через CCXT
 exchange = ccxt.kucoin({'enableRateLimit': True})
 
-def fetch_ohlcv(symbol='BTC/USDT', timeframe='30m', limit=100):
-    data = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-    df = pd.DataFrame(data, columns=['ts','open','high','low','close','vol'])
-    df['ts'] = pd.to_datetime(df['ts'], unit='ms')
-    return df.set_index('ts')
+def fetch_ohlcv(symbol='BTC/USDT', timeframe='30m', limit=100, retries=2):
+    for attempt in range(retries + 1):
+        try:
+            data = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+            df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            logging.info(f"✅ Данные по {symbol} получены с KuCoin (попытка {attempt + 1})")
+            return df
+        except Exception as e:
+            logging.warning(f"⚠️ Попытка {attempt + 1} — ошибка KuCoin по {symbol}: {e}")
+            time.sleep(1)
+
+    logging.error(f"❌ Не удалось получить данные по {symbol} с KuCoin после {retries + 1} попыток")
+    return pd.DataFrame()  # или raise, если хочешь, чтобы бот сигнализировал
 
 
 def detect_market_structure(df):
