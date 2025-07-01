@@ -89,6 +89,8 @@ def fetch_rsi_6h(symbol='BTC/USDT'):
     df['rsi'] = ta.rsi(df['close'], length=14)
     return df['rsi'].iloc[-1]
 
+
+
 def generate_report(symbol='BTC/USDT'):
     df = fetch_ohlcv(symbol=symbol)
     df = compute_indicators(df)
@@ -130,29 +132,29 @@ def generate_report(symbol='BTC/USDT'):
 
     # 🟢 ЛОНГ
     if long_score >= 4 and long_score > short_score:
-    text += (
-        "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "🟢 <b>Сильный сигнал на вход в ЛОНГ</b>\n"
-        f"✅ Выполнено {long_score}/5 условий:\n"
-    )
-    for label, passed in long_conditions.items():
-        safe_label = html.escape(label)
-        text += f"{'🟩' if passed else '⬜'} {safe_label}\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    logging.info(f"{symbol} — ЛОНГ: {long_score}/5 условий выполнено")
+        text += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🟢 <b>Сильный сигнал на вход в ЛОНГ</b>\n"
+            f"✅ Выполнено {long_score}/5 условий:\n"
+        )
+        for label, passed in long_conditions.items():
+            safe_label = html.escape(label)
+            text += f"{'🟩' if passed else '⬜'} {safe_label}\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        logging.info(f"{symbol} — ЛОНГ: {long_score}/5 условий выполнено")
 
     # 🔴 ШОРТ
     elif short_score >= 4 and short_score > long_score:
-    text += (
-        "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "🔴 <b>Сильный сигнал на вход в ШОРТ</b>\n"
-        f"✅ Выполнено {short_score}/5 условий:\n"
-    )
-    for label, passed in short_conditions.items():
-        safe_label = html.escape(label)
-        text += f"{'🟥' if passed else '⬜'} {safe_label}\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    logging.info(f"{symbol} — ШОРТ: {short_score}/5 условий выполнено")
+        text += (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🔴 <b>Сильный сигнал на вход в ШОРТ</b>\n"
+            f"✅ Выполнено {short_score}/5 условий:\n"
+        )
+        for label, passed in short_conditions.items():
+            safe_label = html.escape(label)
+            text += f"{'🟥' if passed else '⬜'} {safe_label}\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        logging.info(f"{symbol} — ШОРТ: {short_score}/5 условий выполнено")
 
     # 🟡 Возможные сигналы
     elif long_score == 3:
