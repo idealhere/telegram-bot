@@ -156,17 +156,25 @@ def generate_report(symbol='BTC/USDT'):
         text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
         logging.info(f"{symbol} — ШОРТ: {short_score}/5 условий выполнено")
 
-    # 🟡 Возможные сигналы
+    # 🟡 Возможный ЛОНГ
     elif long_score == 3:
         text += (
             f"\n🟡 <b>Возможный сигнал на ЛОНГ</b> "
             f"({long_score}/5) — требуется подтверждение\n"
         )
+        for label, passed in long_conditions.items():
+            safe_label = html.escape(label)
+            text += f"{'🟩' if passed else '⬜'} {safe_label}\n"
+
+    # 🟡 Возможный ШОРТ
     elif short_score == 3:
         text += (
             f"\n🟡 <b>Возможный сигнал на ШОРТ</b> "
             f"({short_score}/5) — требуется подтверждение\n"
         )
+        for label, passed in short_conditions.items():
+            safe_label = html.escape(label)
+            text += f"{'🟥' if passed else '⬜'} {safe_label}\n"
 
     # ⚪ Нет сигнала
     else:
@@ -176,6 +184,7 @@ def generate_report(symbol='BTC/USDT'):
         )
 
     return text
+
 
 
 # Telegram-бот
