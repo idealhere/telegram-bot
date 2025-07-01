@@ -91,24 +91,36 @@ def fetch_rsi_6h(symbol='BTC/USDT'):
 
 
 
+
+def get_signal_bar(score, emoji_passed, emoji_empty):
+    return ''.join([emoji_passed] * score + [emoji_empty] * (5 - score))
+
 def generate_report(symbol='BTC/USDT'):
     df = fetch_ohlcv(symbol=symbol)
     df = compute_indicators(df)
     last = df.iloc[-1]
     rsi_6h = fetch_rsi_6h(symbol=symbol)
 
-    # структура рынка 4h
+    # Структура рынка по 4h
     df_struct = fetch_ohlcv(symbol=symbol, timeframe='4h')
     df_struct = detect_market_structure(df_struct)
     structure = df_struct.iloc[-1].get('structure', '—')
 
-    # заголовок
+    # MA200 (4h)
+    df_4h = fetch_ohlcv(symbol=symbol, timeframe='4h', limit=250)
+    df_4h['ma200'] = df_4h['close'].rolling(window=200).mean()
+    ma200_4h = df_4h['ma200'].iloc[-1]
+    price_above_ma200 = last['close'] > ma200_4h
+
+    # Заголовок
     text = (
         f"📊 {symbol}\n"
         f"🕒 {last.name.strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"💰 Цена: {last['close']:.2f} USDT\n"
+        f"📉 MA200 (4h): {ma200_4h:.2f} {'🟢 выше' if price_above_ma200 else '🔴 ниже'}\n"
     )
 
+    # Условия
     long_conditions = {
         "RSI < 33": rsi_6h < 33,
         "Бычья свеча (close > open)": last['close'] > last['open'],
@@ -127,7 +139,12 @@ def generate_report(symbol='BTC/USDT'):
     long_score = sum(long_conditions.values())
     short_score = sum(short_conditions.values())
 
-    # выбор «победителя»
+    # Фильтрация ЛОНГ-сигналов, если цена ниже MA200
+    if long_score >= 3 and not price_above_ma200:
+        text += "⚠️ Цена ниже MA200 — ЛОНГ-сигнал ослаблен\n"
+        long_score = 0
+
+    # Выбор направления
     if long_score > short_score:
         emoji_passed, emoji_failed, conds, score = '🟩', '⬜', long_conditions, long_score
         header = ("🟢 <b>Сигнал ЛОНГ</b>", long_score)
@@ -135,16 +152,16 @@ def generate_report(symbol='BTC/USDT'):
         emoji_passed, emoji_failed, conds, score = '🟥', '⬜', short_conditions, short_score
         header = ("🔴 <b>Сигнал ШОРТ</b>", short_score)
 
-    # если score >= 3 — выводим чек-лист
+    # Вывод сигнала
     if score >= 3:
         text += "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
         text += f"{header[0]}\n✅ Выполнено {header[1]}/5 условий:\n"
+        bar = get_signal_bar(score, emoji_passed, emoji_failed)
+        text += f"{bar}\n"
         for label, passed in conds.items():
             safe = html.escape(label)
             text += f"{emoji_passed if passed else emoji_failed} {safe}\n"
         text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-
-    # иначе — нет сигнала
     else:
         text += (
             f"\n⚪ <b>Пока нет точки входа</b> — "
