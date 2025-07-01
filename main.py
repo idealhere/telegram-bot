@@ -201,6 +201,7 @@ def send_analysis(context: CallbackContext):
             context.bot.send_message(chat_id=chat_id, text=f"⚠️ Ошибка при анализе {symbol}: {e}")
 
 def send_filtered_analysis(context: CallbackContext):
+    global last_sent_signal
     chat_id = context.job.context
     symbols = [
         'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT',
@@ -208,24 +209,34 @@ def send_filtered_analysis(context: CallbackContext):
         'LINK/USDT', 'SHIB/USDT', 'ATOM/USDT'
     ]
 
-    sent_count = 0  # ← счётчик отправленных сигналов
+    sent_count = 0
 
     for symbol in symbols:
         try:
             report = generate_report(symbol=symbol)
-            if any(x in report for x in ["🟢", "🔴", "🟡"]):
-                context.bot.send_message(chat_id=chat_id, text=report, parse_mode='HTML')
-                sent_count += 1
+
+            # Определяем направление
+            if "Сигнал ЛОНГ" in report:
+                direction = 'LONG'
+            elif "Сигнал ШОРТ" in report:
+                direction = 'SHORT'
             else:
-                print(f"[{symbol}] — нет сигнала, отчёт не отправлен.")
+                continue  # нет сигнала
+
+            # Извлекаем score
+            line = next((l for l in report.splitlines() if "Выполнено" in l), None)
+            score = int(line.split()[1].split('/')[0]) if line else 0
+
+            # Отправляем только если score ≥ 4 и сигнал новый
+            if score >= 4 and last_sent_signal.get(symbol) != direction:
+                context.bot.send_message(chat_id=chat_id, text=report, parse_mode='HTML')
+                last_sent_signal[symbol] = direction
+                sent_count += 1
+
         except Exception as e:
             context.bot.send_message(chat_id=chat_id, text=f"⚠️ Ошибка при анализе {symbol}: {e}")
 
-    # 🧾 Финальный итог
-    summary = f"📊 Обработано {len(symbols)} пар. Сигналы найдены по {sent_count} из них."
-    context.bot.send_message(chat_id=chat_id, text=summary)
-
-
+    context.bot.send_message(chat_id=chat_id, text=f"📊 Сильных сигналов отправлено: {sent_count}")
 
 
 
