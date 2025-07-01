@@ -172,7 +172,7 @@ def start(update: Update, context: CallbackContext):
         "Используй /subscribe для подписки и /unsubscribe для отмены."
     )
 
-ddef send_analysis(context: CallbackContext):
+def send_analysis(context: CallbackContext):
     chat_id = context.job.context
     symbols = [
         'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT',
