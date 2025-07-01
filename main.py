@@ -6,6 +6,8 @@ import pandas_ta as ta
 import logging  # 👈 добавляем импорт логгера
 import html
 import time
+last_sent_signal = {}  # ключ: symbol, значение: 'LONG' или 'SHORT'
+
 
 from flask import Flask
 from threading import Thread
@@ -229,17 +231,14 @@ def send_filtered_analysis(context: CallbackContext):
 
 def subscribe(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-
-    text = (
-        "📬 Подписка активна! "
-        "🟢 Лонг и 🔴 шорт сигналы будут приходить только по делу — без лишнего шума.\n"
-        "🟡 Также получаешь ранние предупреждения, когда рынок приближается к точке входа."
+    update.message.reply_text("📬 Подписка активна!")
+    context.job_queue.run_repeating(
+        send_filtered_analysis,
+        interval=1800,
+        first=5,
+        context=chat_id,
+        name=str(chat_id)
     )
-    update.message.reply_text(text)
-
-    # Запускаем проверку каждые 30 минут, но отправляем только если есть сигнал
-    context.job_queue.run_repeating(send_filtered_analysis, interval=1800, first=5, context=chat_id)
-
 
 def unsubscribe(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
@@ -249,7 +248,6 @@ def unsubscribe(update: Update, context: CallbackContext):
     update.message.reply_text("❌ Подписка отменена.")
 
 def main():
-    print("🚀 Запуск бота...")  # ← добавлено
     updater = Updater(token=TOKEN, use_context=True)
     dp = updater.dispatcher
 
@@ -257,10 +255,10 @@ def main():
     dp.add_handler(CommandHandler("subscribe", subscribe))
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
-    print("✅ Бот запущен. Ожидаю команды в Telegram...")  # ← добавлено
     keep_alive()
     updater.start_polling()
     updater.idle()
+
 
 
 if __name__ == "__main__":
